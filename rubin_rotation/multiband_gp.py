@@ -15,13 +15,13 @@ def make_data_nice(x, y, yerr):
 
 class Star(object):
 
-    def __init__(self, x, y, yerr, peak):
+    def __init__(self, x, y, yerr, init_period):
         self.x = x
         self.y = y
         self.yerr = yerr
-        self.peak = peak
+        self.init_period = init_period
 
-    def multiband_gp(self, inds, seed=42):
+    def multiband_gp(self, inds, seed=42, lower=.1, upper=150):
         # x, y, yerr = make_data_nice(x, y, yerr)
         np.random.seed(seed)
 
@@ -46,8 +46,8 @@ class Star(object):
 
             # The parameters of the RotationTerm kernel
             logamp = pm.Normal("logamp", mu=np.log(np.var(self.y)), sd=5.0)
-            BoundedNormal = pm.Bound(pm.Normal, lower=0.0, upper=np.log(50))
-            logperiod = BoundedNormal("logperiod", mu=np.log(self.peak["period"]), sd=5.0)
+            BoundedNormal = pm.Bound(pm.Normal, lower=lower, upper=np.log(upper))
+            logperiod = BoundedNormal("logperiod", mu=np.log(self.init_period), sd=5.0)
             logQ0 = pm.Normal("logQ0", mu=1.0, sd=10.0)
             logdeltaQ = pm.Normal("logdeltaQ", mu=2.0, sd=10.0)
             mix = xo.distributions.UnitUniform("mix")
@@ -73,7 +73,9 @@ class Star(object):
             map_soln = xo.optimize(start=model.test_point)
             self.map_soln = map_soln
 
-        return map_soln
+        self.model = model
+        self.map_soln = model
+        return map_soln, model
 
     def singleband_gp(self, lower=5, upper=50, seed=42):
     # x, y, yerr = make_data_nice(x, y, yerr)
@@ -95,7 +97,7 @@ class Star(object):
             logamp = pm.Normal("logamp", mu=np.log(np.var(self.y)), sd=5.0)
             BoundedNormal = pm.Bound(pm.Normal, lower=np.log(lower),
                                     upper=np.log(upper))
-            logperiod = BoundedNormal("logperiod", mu=np.log(peak["period"]),
+            logperiod = BoundedNormal("logperiod", mu=np.log(self.init_period),
                                     sd=5.0)
             logQ0 = pm.Normal("logQ0", mu=1.0, sd=10.0)
             logdeltaQ = pm.Normal("logdeltaQ", mu=2.0, sd=10.0)
@@ -121,14 +123,11 @@ class Star(object):
             # Optimize to find the maximum a posteriori parameters
             map_soln = xo.optimize(start=model.test_point)
 
-        if mcmc == True:
-            with model:
-                trace = xo.sample(tune=500, draws=1000, start=map_soln,
-                                target_accept=0.95)
+        self.model = model
+        self.map_soln = model
+        return map_soln, model
 
-        return map_soln
-
-    def mcmc(self):
-        with model:
-            trace = xo.sample(tune=500, draws=1000, start=self.map_soln,
-                            target_accept=0.95)
+    # def mcmc(self):
+    #     with self.model:
+    #         trace = xo.sample(tune=500, draws=1000, start=self.map_soln,
+    #                         target_accept=0.95)
